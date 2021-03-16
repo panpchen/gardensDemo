@@ -49,53 +49,75 @@ export default class Game extends cc.Component {
   bubble: cc.Node = null;
   @property(cc.Label)
   title: cc.Label = null;
+  @property(cc.Node)
+  mainBg: cc.Node = null;
   private _curData = null;
-
+  private _canStart: boolean = false;
+  private _remainCount: number = CONFIG_TXT_LIST.length;
+  private _lastTween: cc.Tween = null;
   onLoad() {
+    this.printTitleEff(() => {
+      this._canStart = true;
+    });
     this.onShowBubble(false);
 
     this.bubble.getChildByName("mask").on(
       "touchend",
       () => {
         this.onShowBubble(false);
+        this._lastTween = null;
+        this._remainCount--;
+        if (this._remainCount <= 0) {
+          // this.arrows.active = false;
+          this.bubble.active = false;
+          this.borders.active = false;
+
+          this.title.node.active = true;
+          this.title.node.scale = 0;
+          this.title.node.getChildByName("arrow").active = false;
+          this.title.string =
+            "恭喜你顺利通过了园林探索，中国古典园林追求 “诗情画意”的审美境界。将自然美和建筑美融合在一起，将山水、花木和亭台楼阁、厅堂廊树等巧妙地结合起来，形成了鲜明而独特的艺术风格。";
+          cc.tween(this.title.node)
+            .to(2, { scale: 1 }, { easing: "bounceOut" })
+            .start();
+        }
       },
       this
     );
 
-    this.arrows.children.forEach((arrow) => {
-      cc.tween(arrow)
-        .repeatForever(
-          cc
-            .tween()
-            .parallel(
-              cc.tween().by(0.2, { y: 25 }),
-              cc.tween().to(0.2, { scale: 0.95 })
-            )
-            .parallel(
-              cc.tween().by(0.2, { y: -25 }),
-              cc.tween().to(0.2, { scale: 1 })
-            )
-            .delay(1)
-        )
-        .start();
-    });
+    // this.arrows.children.forEach((arrow) => {
+    //   cc.tween(arrow)
+    //     .repeatForever(
+    //       cc
+    //         .tween()
+    //         .parallel(
+    //           cc.tween().by(0.2, { y: 25 }),
+    //           cc.tween().to(0.2, { scale: 0.95 })
+    //         )
+    //         .parallel(
+    //           cc.tween().by(0.2, { y: -25 }),
+    //           cc.tween().to(0.2, { scale: 1 })
+    //         )
+    //         .delay(1)
+    //     )
+    //     .start();
+    // });
 
     this.borders.children.forEach((border) => {
       cc.tween(border)
         .repeatForever(cc.tween().to(1, { scale: 0.95 }).to(1, { scale: 1 }))
         .start();
     });
-
-    this.printTitleEff();
   }
 
-  printTitleEff() {
+  printTitleEff(callback: Function) {
     const charList = TITLE.split("");
     let id: number = 0;
     this.schedule(() => {
       id++;
       if (id > charList.length) {
         this.unscheduleAllCallbacks();
+        callback && callback();
         const arrow = this.title.node.getChildByName("arrow");
         cc.tween(arrow)
           .repeatForever(cc.tween().by(0.5, { y: 25 }).by(0.5, { y: -25 }))
@@ -103,15 +125,41 @@ export default class Game extends cc.Component {
       } else {
         this.title.string = charList.slice(0, id).join("");
       }
-    }, 0.2);
+    }, 0.3);
+  }
+
+  onClickStart() {
+    if (!this._canStart) {
+      return;
+    }
+    this.title.node.active = false;
+    this._fadeInMainBg(() => {
+      this.scheduleOnce(() => {
+        // this.arrows.active = true;
+        this.borders.active = true;
+      }, 0.5);
+    });
+  }
+  _fadeInMainBg(callback: Function) {
+    cc.tween(this.mainBg)
+      .to(2, { color: cc.Color.WHITE })
+      .call(() => {
+        callback && callback();
+      })
+      .start();
   }
 
   onClickItem(evt, parm) {
+    // 初始是循环缩放效果,这里就先停止
+    if (this._lastTween) {
+      return;
+    }
     cc.Tween.stopAllByTarget(evt.target);
     const id = Number(parm);
-    this.arrows.children[id].active = false;
+    // this.arrows.children[id].active = false;
     this._curData = CONFIG_TXT_LIST[id];
-    cc.tween(evt.target)
+    this._lastTween = cc
+      .tween(evt.target)
       .to(0.1, { scale: 1.1 })
       .to(0.3, { scale: 0 })
       .call(() => {
@@ -119,11 +167,21 @@ export default class Game extends cc.Component {
       })
       .start();
   }
-
   onShowBubble(enable: boolean) {
     this.bubble.active = enable;
     if (enable) {
       if (this._curData) {
+        cc.Tween.stopAllByTarget(this.bubble);
+        this.bubble.scale = 0;
+        const mask = this.bubble.getChildByName("mask");
+        mask.opacity = 0;
+        cc.tween(this.bubble)
+          .to(0.8, { scale: 1 }, { easing: "bounceOut" })
+          .call(() => {
+            mask.opacity = 170;
+          })
+          .start();
+
         this.bubble.getChildByName("bg").color = cc
           .color()
           .fromHEX(this._curData.color);
